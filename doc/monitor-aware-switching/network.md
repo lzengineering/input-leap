@@ -13,8 +13,8 @@ Restrictive policy:
 
 TLS fingerprints must be verified after certificate changes. Do not silently accept a new server fingerprint after an address change.
 
-## OpenClaw
+## Remote development automation
 
-Windows nodes initiate their Gateway connection to `192.168.10.10:18789/TCP`. No inbound Windows-node listener is required for normal operation. Restrict the Gateway rule to the exact DHCP-reserved node addresses rather than all of `192.168.20.0/24` once the addresses are final.
+If remote build or test agents are used, they should initiate encrypted connections to their controller. Restrict controller access to the exact agent addresses; do not expose agent control ports publicly or permit entire local subnets by default.
 
-Input Leap and OpenClaw rules are independent. Neither requires a public NAT/port-forward rule.
+Input Leap and development-automation rules are independent. Neither requires a public NAT/port-forward rule.

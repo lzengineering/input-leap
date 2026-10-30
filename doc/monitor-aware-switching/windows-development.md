@@ -16,10 +16,8 @@ The upstream workflow builds Windows Server 2019 + Qt 5.15 and Windows Server 20
 
 Use a separate checkout/build directory and do not overwrite the production Input Leap installation. First prove a Debug ZIP build, then run it from an isolated directory with a copied test configuration.
 
-## Current node inventory (2026-10-30)
+## Remote automation baseline
 
-- KPC2 is online and advertises remote commands, file transfer, screenshots, desktop streaming, and Computer Use.
-- Only portable Git and Windows PowerShell were confirmed in PATH; CMake, Ninja, MSBuild/CL, Python, pwsh, and winget were not confirmed.
-- A second Windows Companion node is paired but offline and did not advertise `computer.act` in its last capability set.
+Before provisioning dependencies, inventory each Windows test host for Git, PowerShell, CMake, Ninja, MSBuild/CL, Python, Qt, and packaging tools. Keep host names, addresses, controller details, and capability inventories in private operational documentation rather than this public repository.
 
-Long-running builds should use a local bounded job wrapper with job ID, log/status files, and explicit cancellation; synchronous node commands are not a durable background-job supervisor.
+Long-running builds should use a local bounded job wrapper with job ID, log/status files, and explicit cancellation; synchronous remote commands are not a durable background-job supervisor.

@@ -2,6 +2,9 @@
 
 Status: technical assessment complete; implementation not started.
 
+> [!IMPORTANT]
+> This is a personal, experimental fork for one specific hardware setup. It is not a maintained distribution and comes with no user-support or compatibility commitment. Test artifacts must not be treated as production releases.
+
 This work targets a Windows server layout where a switchable physical center monitor alternates between the Input Leap server and a client:
 
 - three-monitor mode: `A-left | A-center | A-right`
