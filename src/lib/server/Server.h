@@ -300,6 +300,13 @@ private:
     // (MSWindowsScreen::updateScreenShape), because this is called for every
     // primary motion event.
     BaseClientProxy* monitorBridgeClient() const;
+    // True while the Windows monitor bridge actively owns routing to its
+    // target client (exactly one bridged client and a valid two-monitor
+    // geometry). While true, ordinary (untagged) edge crossings must not
+    // switch to the bridge target; only tagged seam events may. False off
+    // Windows and in three-monitor layouts, leaving ordinary routing
+    // unchanged.
+    bool isMonitorBridgeActive() const;
     // target must be the value monitorBridgeClient() returned for the
     // generation already validated by the caller; this does not rescan,
     // so a target/offset change can never sneak in between the caller's

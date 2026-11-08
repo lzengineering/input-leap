@@ -125,6 +125,17 @@ struct MonitorBridgeGeometry {
         outGlobalY = static_cast<std::int32_t>(g);
         return true;
     }
+    // While the monitor bridge is active, its target client is reachable only
+    // through tagged seam events. An ordinary (untagged) GUI neighbor link to
+    // that same client -- e.g. the outer edge of the server sharing a grid
+    // side with the bridge client -- must not switch to it. Non-bridge
+    // clients and an inactive bridge (including three-monitor layouts, where
+    // valid == false) are never suppressed.
+    template <typename TargetPtr, typename CandidatePtr>
+    static bool ordinaryEdgeLinkAllowed(bool bridgeActive, TargetPtr bridgeTarget,
+                                        CandidatePtr candidate) {
+        return !bridgeActive || bridgeTarget == nullptr || candidate != bridgeTarget;
+    }
     // Retained for callers/tests of the old proportional-scaling behaviour;
     // no longer used by the bridge's enter/return path (see mapEnterY and
     // mapReturnY above), but still a generally useful clamped linear remap.

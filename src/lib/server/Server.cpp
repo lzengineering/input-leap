@@ -17,6 +17,7 @@
  */
 
 #include "server/Server.h"
+#include "inputleap/MonitorBridgeGeometry.h"
 #if defined(_WIN32)
 #include "platform/WindowsMonitorBridge.h"
 #endif
@@ -1748,6 +1749,19 @@ BaseClientProxy* Server::monitorBridgeClient() const
 #endif
 }
 
+// Off Windows the bridge can never engage, so ordinary edge routing is
+// never suppressed there. Three-monitor layouts leave geometry.valid false,
+// which keeps their ordinary routing untouched as well.
+bool Server::isMonitorBridgeActive() const
+{
+#if defined(_WIN32)
+    return monitorBridgeClient() != nullptr &&
+           WindowsMonitorBridge::instance().geometry.valid;
+#else
+    return false;
+#endif
+}
+
 // The target must be the pointer monitorBridgeClient() returned for the
 // generation the caller already validated. This deliberately does not
 // re-resolve: a target/offset/config change can never sneak in between the
@@ -1927,6 +1941,14 @@ bool Server::onMouseMovePrimary(std::int32_t x, std::int32_t y)
 
 		// get jump destination
 		BaseClientProxy* newScreen = mapToNeighbor(m_active, dir, x, y);
+
+		// while the monitor bridge is active its target is reachable only
+		// via tagged seam events, so an ordinary GUI neighbor link to it
+		// (e.g. the outer edge sharing a grid side) must not switch
+		if (!MonitorBridgeGeometry::ordinaryEdgeLinkAllowed(isMonitorBridgeActive(),
+				monitorBridgeClient(), newScreen)) {
+			continue;
+		}
 
 		// should we switch or not?
 		if (isSwitchOkay(newScreen, dir, x, y, xc, yc)) {
