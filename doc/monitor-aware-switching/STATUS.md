@@ -20,18 +20,24 @@ not an up-to-date completion checklist. This file is the current portable handof
 - 2026-11-06: switching between three local monitors and two plus the middle client
   worked in both directions.
 - Server standby currently requires Reload in the GUI. Root cause is unconfirmed.
-- The left outer edge can incorrectly enter the bridge client through the ordinary
-  GUI neighbor link. Bridge routing does not yet suppress that ordinary link.
+- The left outer edge could incorrectly enter the bridge client through the ordinary
+  GUI neighbor link. Fixed on the routing side: while the bridge is active
+  (two-monitor geometry valid, exactly one bridged client), ordinary edge
+  crossings to the bridge target are suppressed in Server::onMouseMovePrimary;
+  only tagged seam events enter it. Ordinary routing is unchanged when the
+  bridge is inactive (three-monitor layouts, lock, ambiguous target) or off
+  Windows. Not yet covered by an automated end-to-end test on Windows hardware.
 - Confirmed workaround (2026-11-06): place the remote client DIAGONALLY relative to
   the server in the GUI grid, with no shared edge; retain bridge checkbox and offset.
   The grid represents computers, not individual physical monitors.
 
 ## Next coding-agent tasks, in order
-1. Add a regression for the outer-edge ordinary-link conflict, then define/fix routing
-   when the bridge is active without breaking non-bridge clients or three-monitor mode.
-   Start at Server::handle_motion_primary_event, onMouseMovePrimary and getNeighbor;
-   tagged seam events and ordinary edge events currently take different paths.
-   Cover both outer edges, both inner directions, portrait, offsets and topology changes.
+1. DONE (routing fix + unit-level regression for the suppression predicate):
+   the outer-edge ordinary-link conflict is suppressed while the bridge is active,
+   without touching non-bridge clients or three-monitor mode. Remaining: an automated
+   end-to-end regression at the Server::onMouseMovePrimary level (needs a Windows or
+   fully mocked Server harness), and coverage of both outer edges, both inner
+   directions, portrait, offsets and topology changes on real hardware.
 2. Diagnose standby before changing reconnect logic: collect timestamped server AND
    client logs after server resume, BEFORE Reload. Separate listener, TLS connection,
    watchdog/session and display-topology recovery; test server/client suspend separately.

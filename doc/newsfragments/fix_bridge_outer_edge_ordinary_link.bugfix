@@ -1,0 +1,1 @@
+Fix the experimental Windows monitor bridge letting the cursor enter the bridged remote client through an ordinary GUI edge link (e.g. the outer left edge) while the bridge is active; the client is now reachable only via the internal monitor seam in that mode.

@@ -164,3 +164,28 @@ TEST(MonitorBridgeGeometryTests, crossingWithOutYSurvivesNearInt32ExtremeCoordin
     EXPECT_EQ(1, g.crossing(-1073741824, 500, 1073741824, 500, outY));
     EXPECT_EQ(500, outY);
 }
+
+TEST(MonitorBridgeGeometryTests, ordinaryEdgeLinkToBridgeTargetIsSuppressedWhileBridgeActive)
+{
+    // Regression: the outer edge of the server sharing a grid side with the
+    // bridge client used to switch into the client through the ordinary GUI
+    // neighbor link. While the bridge is active, only tagged seam events may
+    // enter the bridge target.
+    const int bridgeTarget = 1;
+    const int otherClient = 2;
+    EXPECT_FALSE(MonitorBridgeGeometry::ordinaryEdgeLinkAllowed(true, &bridgeTarget, &bridgeTarget));
+    EXPECT_TRUE(MonitorBridgeGeometry::ordinaryEdgeLinkAllowed(true, &bridgeTarget, &otherClient));
+    EXPECT_TRUE(MonitorBridgeGeometry::ordinaryEdgeLinkAllowed(true, &bridgeTarget, nullptr));
+}
+
+TEST(MonitorBridgeGeometryTests, ordinaryEdgeLinkUnchangedWhenBridgeInactiveOrNoTarget)
+{
+    // Three-monitor layouts (valid == false) and locked/ambiguous states
+    // make the bridge inactive, and with no bridged client at all: ordinary
+    // routing, including into a client that happens to share an edge, must
+    // stay exactly as before.
+    const int client = 1;
+    EXPECT_TRUE(MonitorBridgeGeometry::ordinaryEdgeLinkAllowed(false, &client, &client));
+    EXPECT_TRUE(MonitorBridgeGeometry::ordinaryEdgeLinkAllowed(true, nullptr, &client));
+    EXPECT_TRUE(MonitorBridgeGeometry::ordinaryEdgeLinkAllowed(false, nullptr, nullptr));
+}
