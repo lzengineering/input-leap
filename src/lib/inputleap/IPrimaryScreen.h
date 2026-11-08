@@ -51,14 +51,18 @@ public:
     //! Motion event data
     class MotionInfo {
     public:
-        MotionInfo(std::int32_t x, std::int32_t y) :
+        MotionInfo(std::int32_t x, std::int32_t y, int bridgeDirection = 0, std::uint32_t bridgeGeneration = 0) :
             m_x{x},
-            m_y{y}
+            m_y{y},
+            m_bridgeDirection{bridgeDirection},
+            m_bridgeGeneration{bridgeGeneration}
         {}
 
     public:
         std::int32_t m_x;
         std::int32_t m_y;
+        int m_bridgeDirection; // Internal primary event only, never serialized.
+        std::uint32_t m_bridgeGeneration;
     };
     //! Wheel motion event data
     class WheelInfo {

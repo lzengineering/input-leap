@@ -1,3 +1,13 @@
+> [!WARNING]
+> **WIP / EXPERIMENTAL WINDOWS MONITOR BRIDGE - NOT RELEASE-READY.**
+> Implemented: remote middle monitor between two local Windows monitors, GUI Y offset,
+> and automatic two/three-monitor switching. Known bugs: server standby needs Reload;
+> an ordinary left-edge GUI link can incorrectly enter the client.
+> Confirmed workaround: put the client diagonally in the grid (no shared edge),
+> retaining its bridge checkbox and offset. Runtime, installer and license gates
+> remain open; no support commitment.
+> **[Current status, TODO and build/test entry](doc/monitor-aware-switching/STATUS.md)**
+
 # Input Leap
 
 <!-- add badges: flatpak, snap, GitHub Actions -->

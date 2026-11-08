@@ -76,6 +76,15 @@ ServerConfigDialog::ServerConfigDialog(QWidget* parent, ServerConfig& config, co
 
 void ServerConfigDialog::accept()
 {
+    int bridgeClients = 0;
+    for (const auto& screen : serverConfig().screens()) {
+        if (!screen.isNull() && screen.monitorBridge()) ++bridgeClients;
+    }
+    if (bridgeClients > 1) {
+        QMessageBox::warning(this, tr("Middle monitor client"),
+                             tr("Select only one client to insert between the server monitors."));
+        return;
+    }
     serverConfig().haveHeartbeat(ui_->m_pCheckBoxHeartbeat->isChecked());
     serverConfig().setHeartbeat(ui_->m_pSpinBoxHeartbeat->value());
 

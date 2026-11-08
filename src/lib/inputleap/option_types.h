@@ -71,6 +71,14 @@ static const OptionID    kOptionClipboardSharing            = OPTION_CODE("CLPS"
 static const OptionID    kOptionClipboardSharingSize        = OPTION_CODE("CLSZ");
 //@}
 
+// Server-only screen flag: insert this client between two Windows monitors.
+static const OptionID kOptionMonitorBridge = OPTION_CODE("MBRG");
+
+// Server-only signed vertical offset  (pixels) for the monitor bridge: how far
+// the bridged client's logical top sits from native-screen Y zero, positive
+// down. Never sent over the wire, like kOptionMonitorBridge.
+static const OptionID kOptionMonitorBridgeYOffset = OPTION_CODE("MBOF");
+
 //! @name Screen switch corner enumeration
 //@{
 enum EScreenSwitchCorners {

@@ -69,14 +69,15 @@ Filename: {sys}\sc.exe; Parameters: "delete {#MyAppServiceName}"; Flags: runhidd
 Filename: {sys}\netsh.exe; Parameters: "advfirewall firewall delete rule name=""{#MyAppListenerDesc}"""; Flags: runhidden
 
 [CustomMessages]
-DependenciesDir="redist"
+; DependenciesDir="redist" removed with the download framework: nothing is fetched over the network at install time.
 
-; shared code for installing the products
-#include "scripts\products.iss"
+; version/product helper libraries (kept, inert: no products are registered)
+; scripts\products.iss (the isxdl HTTP-download framework for dependency products) removed:
+; with vcredist2017 gone, no products are registered and the installer never accesses the network at install time.
 #include "scripts\products\stringversion.iss"
 #include "scripts\products\winversion.iss"
 #include "scripts\products\msiproduct.iss"
-#include "scripts\products\vcredist2017.iss"
+; vcredist2017.iss removed: it downloaded vc_redist.x86.exe/vc_redist.x64.exe from download.microsoft.com at install time, unreachable on a standalone offline target machine. MSVC runtime DLLs are already staged next to the executables by CMakes InstallRequiredSystemLibraries, so no separate VC++ redistributable step is needed.
 
 [Code]
 function InitializeSetup(): boolean;
@@ -84,7 +85,7 @@ begin
 	// initialize windows version
 	initwinversion();
 
-	vcredist2017('14'); // min allowed version is 14.0
+	// vcredist2017 removed: it downloaded a VC++ redistributable from the network at install time, unsuitable for a standalone/offline target. MSVC runtime DLLs are already bundled next to the executables via CMakes InstallRequiredSystemLibraries.
 
 	Result := true;
 end;

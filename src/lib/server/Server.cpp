@@ -17,6 +17,9 @@
  */
 
 #include "server/Server.h"
+#if defined(_WIN32)
+#include "platform/WindowsMonitorBridge.h"
+#endif
 
 #include "server/ClientProxy.h"
 #include "server/ClientProxyUnknown.h"
@@ -1044,6 +1047,7 @@ Server::stopRelativeMoves()
 void
 Server::sendOptions(BaseClientProxy* client) const
 {
+    monitorBridgeClient();
 	OptionsList optionsList;
 
 	// look up options for client
@@ -1053,6 +1057,10 @@ Server::sendOptions(BaseClientProxy* client) const
 		// convert options to a more convenient form for sending
 		optionsList.reserve(2 * options->size());
         for (auto index = options->begin(); index != options->end(); ++index) {
+            if (index->first == kOptionMonitorBridge ||
+                index->first == kOptionMonitorBridgeYOffset) {
+                continue; // Server-only, not a wire option.
+            }
 			optionsList.push_back(index->first);
             optionsList.push_back(static_cast<std::uint32_t>(index->second));
 		}
@@ -1064,6 +1072,10 @@ Server::sendOptions(BaseClientProxy* client) const
 		// convert options to a more convenient form for sending
 		optionsList.reserve(optionsList.size() + 2 * options->size());
         for (auto index = options->begin(); index != options->end(); ++index) {
+            if (index->first == kOptionMonitorBridge ||
+                index->first == kOptionMonitorBridgeYOffset) {
+                continue; // Server-only, not a wire option.
+            }
 			optionsList.push_back(index->first);
             optionsList.push_back(static_cast<std::uint32_t>(index->second));
 		}
@@ -1148,6 +1160,18 @@ void Server::handle_shape_changed(BaseClientProxy* client)
 
 	LOG_DEBUG("screen \"%s\" shape changed", getName(client).c_str());
 
+#if defined(_WIN32)
+	// Any connected screen's shape change can invalidate the bridged target's
+	// span or the row overlap a queued cross relied on. Bump the generation
+	// BEFORE any next still-queued tagged crossing event can be processed, so
+	// events posted against the old shape are rejected instead of entering or
+	// returning on a stale row. (Server-side monitor topology refreshes
+	// event-driven via MSWindowsScreen::updateScreenShape.)
+	++WindowsMonitorBridge::instance().generation;
+#endif
+
+    // A pending bridge switch contains coordinates for the old topology.
+    stopSwitch();
 	// update jump coordinate
 	std::int32_t x, y;
 	client->getCursorPos(x, y);
@@ -1260,6 +1284,19 @@ void Server::handle_button_up_event(const Event& event)
 void Server::handle_motion_primary_event(const Event& event)
 {
     const auto& info = event.get_data_as<IPlatformScreen::MotionInfo>();
+    // Resolve the bridge target/offset once per event; the generation check
+    // and enterMonitorBridge() below must see the exact same resolution, or
+    // a config change racing the check could switch target mid-flight.
+    auto* bridgeTarget = monitorBridgeClient();
+    if (info.m_bridgeDirection != 0) {
+        #if defined(_WIN32)
+        if (bridgeTarget != nullptr &&
+            info.m_bridgeGeneration == WindowsMonitorBridge::instance().generation) {
+            enterMonitorBridge(bridgeTarget, info.m_bridgeDirection, info.m_y);
+        }
+        #endif
+        return;
+    }
     onMouseMovePrimary(info.m_x, info.m_y);
 }
 
@@ -1651,6 +1688,164 @@ Server::onMouseUp(ButtonID id)
 	}
 }
 
+// Bridge selection is server-only. Resolving it also refreshes the monitor
+// bridge target/offset state (topology stays event-driven: refreshed in
+// MSWindowsScreen::updateScreenShape and invalidated in handle_shape_changed)
+// and bumps its generation whenever target or offset change, so a caller that
+// validates a generation first can trust the resolution it received. Disconnected/ambiguous targets and screen
+// lock disable seam consumption immediately; ordinary routing stays unchanged.
+BaseClientProxy* Server::monitorBridgeClient() const
+{
+#if defined(_WIN32)
+    auto& bridge = WindowsMonitorBridge::instance();
+    // No refresh() here: this is called for every primary motion event and
+    // EnumDisplayMonitors per motion is both expensive and racy against the
+    // very event being processed. Monitor topology is kept current
+    // event-driven (MSWindowsScreen::updateScreenShape on construction and
+    // WM_DISPLAYCHANGE, bumping the generation when the layout changes), and
+    // remote shape changes invalidate below in handle_shape_changed.
+
+    BaseClientProxy* selected = nullptr;
+    OptionValue offset = 0;
+    bool ambiguous = false;
+    if (m_config != nullptr) {
+        for (const auto& entry : m_clients) {
+            if (entry.second == m_primaryClient) continue;
+            const auto* options = m_config->getOptions(entry.first);
+            if (options == nullptr) continue;
+            const auto option = options->find(kOptionMonitorBridge);
+            if (option == options->end() || option->second == 0) continue;
+            if (selected != nullptr) {
+                ambiguous = true;
+                break;
+            }
+            selected = entry.second;
+            const auto yOffset = options->find(kOptionMonitorBridgeYOffset);
+            if (yOffset != options->end()) {
+                offset = yOffset->second;
+            }
+        }
+    }
+    const bool enabled = selected != nullptr && !ambiguous && !isLockedToScreen();
+    bridge.enabled = enabled;
+    if (!enabled) {
+        // Forget the resolution here so a later re-enable re-bumps the
+        // generation and cannot accept tagged events queued while disabled.
+        m_bridgeTarget = nullptr;
+        m_bridgeOffset = 0;
+        return nullptr;
+    }
+    // A changed target identity or offset invalidates already-tagged
+    // in-flight crossing events exactly like a monitor layout change.
+    if (selected != m_bridgeTarget || offset != m_bridgeOffset) {
+        ++bridge.generation;
+        m_bridgeTarget = selected;
+        m_bridgeOffset = offset;
+    }
+    return selected;
+#else
+    return nullptr;
+#endif
+}
+
+// The target must be the pointer monitorBridgeClient() returned for the
+// generation the caller already validated. This deliberately does not
+// re-resolve: a target/offset/config change can never sneak in between the
+// caller generation check and the switch below. The seam row comes from
+// the intersecting hook event (server-global y) and is mapped with mapEnterY,
+// which rejects rather than squeezes when the row does not overlap the client.
+bool Server::enterMonitorBridge(BaseClientProxy* target, int direction,
+                                std::int32_t y)
+{
+#if defined(_WIN32)
+    if (target == nullptr || target != m_bridgeTarget) return false;
+    const auto& geometry = WindowsMonitorBridge::instance().geometry;
+    if (!geometry.valid || m_active != m_primaryClient) return false;
+    const auto& source = direction > 0 ? geometry.left : geometry.right;
+    std::int32_t tx, ty, tw, th;
+    target->getShape(tx, ty, tw, th);
+    if (tw < 2 || th < 1) return false;
+    std::int32_t destY = 0;
+    if (!MonitorBridgeGeometry::mapEnterY(y, m_bridgeOffset,
+            source.top, source.bottom - source.top, ty, th, destY)) {
+        // The seam row does not overlap the client. The hook consumed the
+        // crossing event, so the native cursor did not move either; without
+        // repositioning it, a diagonal press would be eaten forever at the
+        // stale pre-event row and forward-blocked motion would freeze. Pin
+        // the cursor instead on this source monitor at the seam column and
+        // the attempted, source-bounded row: X stays clear of the far side,
+        // the vertical component of the press still lands, and sliding along
+        // the wall continues from the refreshed position.
+        std::int32_t row = y;
+        if (row < source.top) row = source.top;
+        else if (row >= source.bottom) row = source.bottom - 1;
+        const std::int32_t seamX = direction > 0 ? source.right - 1 : source.left;
+        m_x = seamX;
+        m_y = row;
+        m_primaryClient->mouseMove(seamX, row);
+        return false;
+    }
+    const std::int32_t destX = direction > 0 ? tx : tx + tw - 1;
+    if (isSwitchOkay(target, direction > 0 ? kRight : kLeft, destX, destY,
+                     direction > 0 ? source.right - 1 : source.left, y)) {
+        switchScreen(target, destX, destY, false);
+        return m_active == target;
+    }
+#endif
+    return false;
+}
+
+// Leaving the bridged client back onto the server monitors. Uses mapReturnY
+// (reject instead of squeeze); on rejection the cursor stays on the remote
+// side with x pinned at the client edge and y clamped into the client
+// rectangle, so the seam stays blocked but vertical sliding along it still
+// works and the ordinary machine graph is never consulted.
+bool Server::returnFromMonitorBridge(std::int32_t xOld, std::int32_t yOld)
+{
+#if defined(_WIN32)
+    const BaseClientProxy* target = monitorBridgeClient();
+    const auto& geometry = WindowsMonitorBridge::instance().geometry;
+    if (target == nullptr || m_active != target || !geometry.valid) {
+        return false;
+    }
+    std::int32_t ax, ay, aw, ah;
+    target->getShape(ax, ay, aw, ah);
+    const bool leavingLeft = m_x < ax;
+    const bool leavingRight = m_x >= ax + aw;
+    if (!leavingLeft && !leavingRight) return false;
+    const auto& destination = leavingLeft ? geometry.left : geometry.right;
+    // Eight-pixel inset prevents an immediate bounce into the seam.
+    const std::int32_t destX = leavingLeft ? destination.right - 9 : destination.left + 8;
+    const std::int32_t edgeX = leavingLeft ? ax : ax + aw - 1;
+    std::int32_t destY = 0;
+    const bool mapped = MonitorBridgeGeometry::mapReturnY(m_y, m_bridgeOffset,
+            ay, ah, destination.top, destination.bottom - destination.top, destY);
+    if (mapped && isSwitchOkay(m_primaryClient, leavingLeft ? kLeft : kRight,
+            destX, destY, edgeX, m_y)) {
+        switchScreen(m_primaryClient, destX, destY, false);
+        return true; // Do not fall through to the ordinary machine graph.
+    }
+    // Rejected: keep the cursor on the remote side. Pin x at the client edge
+    // and clamp y into the client rectangle before moving; leaving m_y
+    // outside [ay, ay+ah) would corrupt the client's absolute move target and
+    // the next delta accumulation. Note that m_active is the bridged remote
+    // proxy here, not the primary client: mouseMove sends an absolute move to
+    // the client, it does not warp the local cursor.
+    m_x = edgeX;
+    if (m_y < ay) {
+        m_y = ay;
+    }
+    else if (m_y >= ay + ah) {
+        m_y = ay + ah - 1;
+    }
+    if (m_x != xOld || m_y != yOld) {
+        m_active->mouseMove(m_x, m_y);
+    }
+    return true;
+#endif
+    return false;
+}
+
 bool Server::onMouseMovePrimary(std::int32_t x, std::int32_t y)
 {
 	LOG_DEBUG4("onMouseMovePrimary %d,%d", x, y);
@@ -1846,6 +2041,7 @@ void Server::onMouseMoveSecondary(std::int32_t dx, std::int32_t dy)
 	std::int32_t ax, ay, aw, ah;
 	m_active->getShape(ax, ay, aw, ah);
 
+    if (returnFromMonitorBridge(xOld, yOld)) return;
 	// find direction of neighbor and get the neighbor
 	bool jump = true;
 	BaseClientProxy* newScreen;
@@ -2053,9 +2249,11 @@ Server::removeClient(BaseClientProxy* client)
     m_events->remove_handler(EventType::CLIPBOARD_GRABBED, client->get_event_target());
     m_events->remove_handler(EventType::CLIPBOARD_CHANGED, client->get_event_target());
 
+    if (m_switchScreen == client) stopSwitch();
 	// remove from list
 	m_clients.erase(getName(client));
 	m_clientSet.erase(i);
+    monitorBridgeClient();
 
 	return true;
 }

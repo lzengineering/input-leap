@@ -15,6 +15,56 @@
   </property>
   <layout class="QVBoxLayout">
    <item>
+    <widget class="QCheckBox" name="m_pCheckBoxMonitorBridge">
+     <property name="text">
+      <string>Insert this client between the server's two monitors (Windows)</string>
+     </property>
+     <property name="toolTip">
+      <string>Select exactly one remote client. With two horizontal server monitors, their inner edges lead to this client. With three local monitors, normal routing is used. No client update is needed.</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout">
+     <item>
+      <widget class="QLabel" name="label_MonitorBridgeYOffset">
+       <property name="text">
+        <string>Bridge &amp;Y offset:</string>
+       </property>
+       <property name="buddy">
+        <cstring>m_pSpinBoxMonitorBridgeYOffset</cstring>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QSpinBox" name="m_pSpinBoxMonitorBridgeYOffset">
+       <property name="toolTip">
+        <string>Vertical alignment between this client's seam and the server's monitor seam. Positive values mean this client's top edge sits lower relative to the server's virtual desktop; negative values mean it sits higher. 0 (default) places this client top edge at server-global Y=0; it does not automatically align monitor tops. Values are in pixels.</string>
+       </property>
+       <property name="minimum">
+        <number>-2147483648</number>
+       </property>
+       <property name="maximum">
+        <number>2147483647</number>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer>
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+    </layout>
+   </item>
+   <item>
     <layout class="QHBoxLayout">
      <item>
       <widget class="QLabel" name="label_7">

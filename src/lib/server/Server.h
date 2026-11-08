@@ -1,4 +1,4 @@
-/*
+﻿/*
  * InputLeap -- mouse and keyboard sharing utility
  * Copyright (C) 2012-2016 Symless Ltd.
  * Copyright (C) 2002 Chris Schoeneman
@@ -291,6 +291,24 @@ private:
 
     // process options from configuration
     void processOptions();
+    // Scans config for the (at most one) screen flagged as the monitor
+    // bridge target and refreshes its cached offset. Also bumps the
+    // WindowsMonitorBridge generation when the resolved target identity or
+    // offset changes, invalidating any already-tagged in-flight crossing
+    // event the same way a monitor layout change does. It does NOT refresh
+    // monitor topology: topology stays event-driven
+    // (MSWindowsScreen::updateScreenShape), because this is called for every
+    // primary motion event.
+    BaseClientProxy* monitorBridgeClient() const;
+    // target must be the value monitorBridgeClient() returned for the
+    // generation already validated by the caller; this does not rescan,
+    // so a target/offset change can never sneak in between the caller's
+    // generation check and the switch below. On a rejected seam row the
+    // cursor is pinned by the server at the source seam column at the
+    // requested row (bounded to the source monitor), so a forward-blocked
+    // diagonal press still delivers its vertical component.
+    bool enterMonitorBridge(BaseClientProxy* target, int direction, std::int32_t y);
+    bool returnFromMonitorBridge(std::int32_t xOld, std::int32_t yOld);
 
     // event handlers
     void handle_shape_changed(BaseClientProxy* client);
@@ -460,6 +478,13 @@ private:
 
     // screen locking (former scroll lock)
     bool m_lockedToScreen;
+
+    // Last target/offset resolved by monitorBridgeClient(), used to detect
+    // config changes (bumping the bridge generation) and to let
+    // enterMonitorBridge() avoid rescanning after the caller's generation
+    // check. No other cache of target shape/offset is kept.
+    mutable BaseClientProxy* m_bridgeTarget = nullptr;
+    mutable OptionValue m_bridgeOffset = 0;
 
     // server screen
     inputleap::Screen* m_screen;

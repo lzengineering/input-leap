@@ -1,6 +1,6 @@
 # Monitor-aware cross-PC switching
 
-Status: technical assessment complete; implementation not started.
+Status: experimental implementation and test candidate exist; not release-ready. See [current status and TODO](STATUS.md) for verified observations, known bugs and remaining gates.
 
 > [!IMPORTANT]
 > This is a personal, experimental fork for one specific hardware setup. It is not a maintained distribution and comes with no user-support or compatibility commitment. Test artifacts must not be treated as production releases.

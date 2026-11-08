@@ -241,6 +241,7 @@ elseif(WIN32)
             --dir "${CMAKE_BINARY_DIR}/qtDeploy" $<TARGET_FILE:input-leap>
     )
     install(TARGETS input-leap DESTINATION .)
+    input_leap_install_openssl_runtime(input-leap)
     install(
         DIRECTORY ${CMAKE_BINARY_DIR}/qtDeploy/
         DESTINATION .

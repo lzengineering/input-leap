@@ -1237,34 +1237,31 @@ void MainWindow::on_m_pButtonReload_clicked()
 #if defined(Q_OS_WIN)
 bool MainWindow::isServiceRunning(QString name)
 {
-    SC_HANDLE hSCManager;
-    hSCManager = OpenSCManager(nullptr, nullptr, SC_MANAGER_CONNECT);
+    SC_HANDLE hSCManager = OpenSCManagerW(nullptr, nullptr, SC_MANAGER_CONNECT);
     if (hSCManager == nullptr) {
-        appendLogError("failed to open a service controller manager, error: " +
-            GetLastError());
+        DWORD error = GetLastError();
+        appendLogError(QString("failed to open a service controller manager, error: %1")
+            .arg(error));
         return false;
     }
 
-    auto array = name.toLocal8Bit();
-
-#if QT_VERSION_MAJOR < 6
-    SC_HANDLE hService = OpenService(hSCManager, array.data(), SERVICE_QUERY_STATUS);
-#else
-    SC_HANDLE hService = OpenService(hSCManager, reinterpret_cast<LPCWSTR>(array.data()), SERVICE_QUERY_STATUS);
-#endif
+    // keep the std::wstring returned by toStdWString() alive for the
+    // OpenServiceW call; the temporary lives until end of full expression
+    SC_HANDLE hService = OpenServiceW(hSCManager, name.toStdWString().c_str(),
+        SERVICE_QUERY_STATUS);
     if (hService == nullptr) {
-        appendLogDebug("failed to open service: " + name);
+        CloseServiceHandle(hSCManager);
+        appendLogDebug(QString("failed to open service: %1").arg(name));
         return false;
     }
 
     SERVICE_STATUS status;
-    if (QueryServiceStatus(hService, &status)) {
-        if (status.dwCurrentState == SERVICE_RUNNING) {
-            return true;
-        }
-    }
+    bool running = QueryServiceStatus(hService, &status) &&
+        status.dwCurrentState == SERVICE_RUNNING;
 
-    return false;
+    CloseServiceHandle(hService);
+    CloseServiceHandle(hSCManager);
+    return running;
 }
 #else
 bool MainWindow::isServiceRunning()

@@ -1,4 +1,4 @@
-/*
+﻿/*
  * InputLeap -- mouse and keyboard sharing utility
  * Copyright (C) 2018 Debauchee Open Source Group
  * Copyright (C) 2012-2016 Symless Ltd.
@@ -18,6 +18,7 @@
  */
 
 #include "platform/MSWindowsHook.h"
+#include "platform/WindowsMonitorBridge.h"
 #include "platform/MSWindowsHookResource.h"
 #include "platform/ImmuneKeysReader.h"
 #include "inputleap/protocol_types.h"
@@ -437,7 +438,7 @@ keyboardLLHook(int code, WPARAM wParam, LPARAM lParam)
 }
 #endif // !NO_GRAB_KEYBOARD
 
-static bool mouseHookHandler(WPARAM wParam, std::int32_t x, std::int32_t y, std::int32_t data)
+static bool mouseHookHandler(WPARAM wParam, std::int32_t x, std::int32_t y, std::int32_t data, bool injected)
 {
     switch (wParam) {
     case WM_LBUTTONDOWN:
@@ -489,6 +490,38 @@ static bool mouseHookHandler(WPARAM wParam, std::int32_t x, std::int32_t y, std:
             PostThreadMessage(g_threadID, INPUTLEAP_MSG_MOUSE_MOVE, x, y);
             return true;
         } else if (g_mode == kHOOK_WATCH_JUMP_ZONE) {
+            auto& bridge = WindowsMonitorBridge::instance();
+            POINT previous{};
+            if (!injected && bridge.enabled && bridge.geometry.valid && GetCursorPos(&previous)) {
+                std::int32_t crossY = y;
+                const int direction = bridge.geometry.crossing(previous.x, previous.y, x, y, crossY);
+                if (direction != 0) {
+                    // Explicit tagged event: do not infer the crossing later from
+                    // queued normal motion. Consume BEFORE Windows changes monitors.
+                    // Use the seam-intersection Y (crossY), not the move's endpoint
+                    // Y: a fast diagonal jump can land far from the seam on the far
+                    // monitor, so the endpoint is the wrong row to enter at.
+                    // Exception: when the previous position already sits on the seam
+                    // column, forward motion is blocked at the wall (t == 0) and the
+                    // intersection degenerates to the stale pre-event row; every
+                    // further diagonal press would then be consumed with that frozen
+                    // row. In that case preserve the requested endpoint Y instead,
+                    // bounded to the source monitor, so the vertical component of
+                    // the press still reaches the server while the native cursor
+                    // never crosses: the move is still consumed here, and the server
+                    // re-pins the cursor along the wall (see Server::enterMonitorBridge).
+                    const auto& source = direction > 0 ? bridge.geometry.left : bridge.geometry.right;
+                    const std::int32_t seamX = direction > 0 ? source.right - 1 : source.left;
+                    if (previous.x == seamX) {
+                        std::int32_t row = y;
+                        if (row < source.top) row = source.top;
+                        else if (row >= source.bottom) row = source.bottom - 1;
+                        crossY = row;
+                    }
+                    if (PostThreadMessage(g_threadID, direction > 0 ? INPUTLEAP_MSG_BRIDGE_RIGHT :
+                                          INPUTLEAP_MSG_BRIDGE_LEFT, bridge.generation, crossY)) return true;
+                }
+            }
             // low level hooks can report bogus mouse positions that are
             // outside of the screen.  jeez.  naturally we end up getting
             // fake motion in the other direction to get the position back
@@ -554,7 +587,7 @@ mouseLLHook(int code, WPARAM wParam, LPARAM lParam)
         std::int32_t w = static_cast<std::int16_t>(HIWORD(info->mouseData));
 
         // handle the message
-        if (mouseHookHandler(wParam, x, y, w)) {
+        if (mouseHookHandler(wParam, x, y, w, (info->flags & LLMHF_INJECTED) != 0)) {
             return 1;
         }
     }

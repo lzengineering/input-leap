@@ -53,6 +53,11 @@ ScreenSettingsDialog::ScreenSettingsDialog(QWidget* parent, Screen* pScreen) :
     m_pScreen(pScreen)
 {
     ui_->setupUi(this);
+    ui_->m_pCheckBoxMonitorBridge->setChecked(m_pScreen->monitorBridge());
+    ui_->m_pSpinBoxMonitorBridgeYOffset->setValue(m_pScreen->monitorBridgeYOffset());
+    ui_->m_pSpinBoxMonitorBridgeYOffset->setEnabled(m_pScreen->monitorBridge());
+    connect(ui_->m_pCheckBoxMonitorBridge, &QCheckBox::toggled,
+            ui_->m_pSpinBoxMonitorBridgeYOffset, &QWidget::setEnabled);
 
     ui_->m_pLineEditName->setText(check_name_param(m_pScreen->name()));
 #if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
@@ -104,6 +109,8 @@ void ScreenSettingsDialog::accept()
     m_pScreen->init();
 
     m_pScreen->setName(ui_->m_pLineEditName->text());
+    m_pScreen->m_MonitorBridge = ui_->m_pCheckBoxMonitorBridge->isChecked();
+    m_pScreen->m_MonitorBridgeYOffset = ui_->m_pSpinBoxMonitorBridgeYOffset->value();
 
     for (int i = 0; i < ui_->m_pListAliases->count(); i++)
     {

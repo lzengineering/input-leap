@@ -256,6 +256,9 @@ if (APPLE OR WIN32)
     set(OPENSSL_USE_STATIC_LIBS TRUE)
 endif()
 find_package(OpenSSL 1.1.1 REQUIRED COMPONENTS SSL Crypto)
+if (WIN32)
+    include(${CMAKE_SOURCE_DIR}/cmake/WindowsRuntimeDeps.cmake)
+endif()
 #
 # Configure_file... but for directories, recursively.
 #

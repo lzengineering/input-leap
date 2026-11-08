@@ -877,7 +877,13 @@ Config::readSectionScreens(ConfigReadContext& s)
 				addOption(screen, kOptionScreenSwitchCornerSize,
 					s.parseInt(value));
 			}
-			else if (name == "preserveFocus") {
+			else if (name == "monitorBridge") {
+                addOption(screen, kOptionMonitorBridge, s.parseBoolean(value));
+            }
+            else if (name == "monitorBridgeYOffset") {
+                addOption(screen, kOptionMonitorBridgeYOffset, s.parseInt(value));
+            }
+            else if (name == "preserveFocus") {
 				addOption(screen, kOptionScreenPreserveFocus,
 					s.parseBoolean(value));
 			}
@@ -1317,6 +1323,8 @@ Config::getOptionName(OptionID id)
 	if (id == kOptionScreenSwitchNeedsAlt) {
 		return "switchNeedsAlt";
 	}
+    if (id == kOptionMonitorBridge) return "monitorBridge";
+    if (id == kOptionMonitorBridgeYOffset) return "monitorBridgeYOffset";
 	if (id == kOptionScreenSaverSync) {
 		return "screenSaverSync";
 	}
@@ -1343,7 +1351,7 @@ Config::getOptionName(OptionID id)
 
 std::string Config::getOptionValue(OptionID id, OptionValue value)
 {
-	if (id == kOptionHalfDuplexCapsLock ||
+	if (id == kOptionMonitorBridge || id == kOptionHalfDuplexCapsLock ||
 		id == kOptionHalfDuplexNumLock ||
 		id == kOptionHalfDuplexScrollLock ||
 		id == kOptionScreenSwitchNeedsShift ||
@@ -1390,7 +1398,8 @@ std::string Config::getOptionValue(OptionID id, OptionValue value)
 	if (id == kOptionHeartbeat ||
 		id == kOptionScreenSwitchCornerSize ||
 		id == kOptionScreenSwitchDelay ||
-		id == kOptionScreenSwitchTwoTap) {
+		id == kOptionScreenSwitchTwoTap ||
+		id == kOptionMonitorBridgeYOffset) {
 		return inputleap::string::sprintf("%d", value);
 	}
 	if (id == kOptionScreenSwitchCorners) {

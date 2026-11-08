@@ -38,6 +38,8 @@ Screen::Screen(const QString& name) :
 
 void Screen::init()
 {
+    m_MonitorBridge = false;
+    m_MonitorBridgeYOffset = 0;
     name().clear();
     aliases().clear();
     modifiers().clear();
@@ -64,6 +66,8 @@ void Screen::loadSettings(QSettings& settings)
     if (name().isEmpty())
         return;
 
+    m_MonitorBridge = settings.value("monitorBridge", false).toBool();
+    m_MonitorBridgeYOffset = settings.value("monitorBridgeYOffset", 0).toInt();
     setSwitchCornerSize(settings.value("switchCornerSize").toInt());
 
     readSettings<QString>(settings, aliases(), "alias", QString(""));
@@ -81,6 +85,8 @@ void Screen::saveSettings(QSettings& settings) const
     if (name().isEmpty())
         return;
 
+    settings.setValue("monitorBridge", monitorBridge());
+    settings.setValue("monitorBridgeYOffset", monitorBridgeYOffset());
     settings.setValue("switchCornerSize", switchCornerSize());
 
     writeSettings<QString>(settings, aliases(), "alias");
@@ -92,6 +98,12 @@ void Screen::saveSettings(QSettings& settings) const
 QTextStream& Screen::writeScreensSection(QTextStream& outStream) const
 {
     outStream << "\t" << name() << ":\n";
+    if (monitorBridge()) {
+        outStream << "\t\tmonitorBridge = true\n";
+        if (monitorBridgeYOffset() != 0) {
+            outStream << "\t\tmonitorBridgeYOffset = " << monitorBridgeYOffset() << "\n";
+        }
+    }
 
     for (int i = 0; i < modifiers().size(); i++) {
         auto mod = static_cast<Modifier>(i);
@@ -147,19 +159,23 @@ QDataStream& operator<<(QDataStream& outStream, const Screen& screen)
         << modifiers
         << screen.switchCorners()
         << screen.fixes()
+        << screen.monitorBridge()
+        << screen.monitorBridgeYOffset()
         ;
 }
 
 QDataStream& operator>>(QDataStream& inStream, Screen& screen)
 {
     QList<int> modifiers;
-    return inStream
+    inStream
         >> screen.m_Name
         >> screen.m_SwitchCornerSize
         >> screen.m_Aliases
         >> modifiers
         >> screen.m_SwitchCorners
         >> screen.m_Fixes
+        >> screen.m_MonitorBridge
+        >> screen.m_MonitorBridgeYOffset
         ;
 
     screen.m_Modifiers.clear();

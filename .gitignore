@@ -23,6 +23,8 @@ src/gui/.rnd
 src/setup/win32/input-leap.suo
 Makefile
 *.cmake
+# Exception: repo-owned CMake helpers in cmake/ are part of the project, not generated
+!cmake/*.cmake
 **/CMakeFiles/
 CMakeCache.txt
 CMakePresets.json
@@ -40,3 +42,12 @@ bundle
 compile_commands.json
 # Cache (used by clangd)
 .cache
+
+# Private local validation artifacts (not publication inputs)
+/*.log
+/*.log.[0-9]*
+/test-server.sgc
+/doc/monitor-aware-switching/HANDOFF-*.md
+/doc/monitor-aware-switching/FINAL-CANDIDATE-*.md
+/doc/monitor-aware-switching/finalization-readiness.md
+/doc/monitor-aware-switching/packaging-candidate.md

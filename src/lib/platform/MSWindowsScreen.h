@@ -167,7 +167,7 @@ private: // HACK
     bool onKey(WPARAM, LPARAM);
     bool onHotKey(WPARAM, LPARAM);
     bool onMouseButton(WPARAM, LPARAM);
-    bool onMouseMove(std::int32_t x, std::int32_t y);
+    bool onMouseMove(std::int32_t x, std::int32_t y, int bridgeDirection = 0);
     bool onMouseWheel(std::int32_t xDelta, std::int32_t yDelta);
     bool onScreensaver(bool activated);
     bool onDisplayChange();

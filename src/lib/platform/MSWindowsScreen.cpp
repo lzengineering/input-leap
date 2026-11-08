@@ -18,6 +18,7 @@
  */
 
 #include "platform/MSWindowsScreen.h"
+#include "platform/WindowsMonitorBridge.h"
 
 #include "platform/MSWindowsDropTarget.h"
 #include "client/Client.h"
@@ -536,6 +537,8 @@ void MSWindowsScreen::warpCursor(std::int32_t x, std::int32_t y)
         // do nothing
     }
 
+    // Tagged seam events are input too; purge stale events across warps.
+    while (PeekMessage(&msg, nullptr, INPUTLEAP_MSG_BRIDGE_LEFT, INPUTLEAP_MSG_BRIDGE_RIGHT, PM_REMOVE)) {}
     // save position to compute delta of next motion
     saveMousePosition(x, y);
 }
@@ -965,6 +968,16 @@ MSWindowsScreen::onPreDispatchPrimary(HWND,
     case INPUTLEAP_MSG_MOUSE_BUTTON:
         return onMouseButton(wParam, lParam);
 
+    case INPUTLEAP_MSG_BRIDGE_LEFT:
+    case INPUTLEAP_MSG_BRIDGE_RIGHT: {
+        const auto& bridge = WindowsMonitorBridge::instance();
+        if (!m_isOnScreen || !bridge.geometry.valid || wParam != bridge.generation) return true;
+        const bool fromLeft = message == INPUTLEAP_MSG_BRIDGE_RIGHT;
+        LOG_DEBUG1("bridgeMsg: fromLeft=%d hookGen=%u curGen=%u", fromLeft ? 1 : 0, static_cast<unsigned>(wParam), static_cast<unsigned>(WindowsMonitorBridge::instance().generation));
+        const auto edgeX = fromLeft ? bridge.geometry.left.right - 1 : bridge.geometry.right.left;
+        return onMouseMove(edgeX, static_cast<std::int32_t>(lParam), fromLeft ? 1 : -1);
+    }
+
     case INPUTLEAP_MSG_MOUSE_MOVE:
         return onMouseMove(static_cast<std::int32_t>(wParam), static_cast<std::int32_t>(lParam));
 
@@ -1297,7 +1310,7 @@ MSWindowsScreen::onMouseButton(WPARAM wParam, LPARAM lParam)
 //      - remember the cursor is hidden on the server at this point
 //      - this actually records the current x,y as "last" a second time (it seems)
 //   5. sends the delta movement to the client (could be +1,+1 or -1,+4 for example)
-bool MSWindowsScreen::onMouseMove(std::int32_t mx, std::int32_t my)
+bool MSWindowsScreen::onMouseMove(std::int32_t mx, std::int32_t my, int bridgeDirection)
 {
     // compute motion delta (relative to the last known
     // mouse position)
@@ -1310,7 +1323,7 @@ bool MSWindowsScreen::onMouseMove(std::int32_t mx, std::int32_t my)
 
     // ignore if the mouse didn't move or if message posted prior
     // to last mark change.
-    if (ignore() || (x == 0 && y == 0)) {
+    if (ignore() || (bridgeDirection == 0 && x == 0 && y == 0)) {
         return true;
     }
 
@@ -1321,7 +1334,8 @@ bool MSWindowsScreen::onMouseMove(std::int32_t mx, std::int32_t my)
 
         // motion on primary screen
         sendEvent(EventType::PRIMARY_SCREEN_MOTION_ON_PRIMARY,
-                  create_event_data<MotionInfo>(MotionInfo{m_xCursor, m_yCursor}));
+                  create_event_data<MotionInfo>(MotionInfo{m_xCursor, m_yCursor, bridgeDirection,
+                      bridgeDirection != 0 ? WindowsMonitorBridge::instance().generation : 0}));
 
         if (m_buttons[kButtonLeft] == true && m_draggingStarted == false) {
             m_draggingStarted = true;
@@ -1416,11 +1430,14 @@ MSWindowsScreen::onDisplayChange()
     // screen resolution may have changed.  save old shape.
     std::int32_t xOld = m_x, yOld = m_y, wOld = m_w, hOld = m_h;
 
+    // Compare individual monitor rectangles even if virtual bounds are unchanged.
+    const auto oldMonitors = WindowsMonitorBridge::instance().monitors;
     // update shape
     updateScreenShape();
 
     // do nothing if resolution hasn't changed
-    if (xOld != m_x || yOld != m_y || wOld != m_w || hOld != m_h) {
+    if (xOld != m_x || yOld != m_y || wOld != m_w || hOld != m_h ||
+        oldMonitors != WindowsMonitorBridge::instance().monitors) {
         if (m_isPrimary) {
             // warp mouse to center if off screen
             if (!m_isOnScreen) {
@@ -1538,6 +1555,7 @@ MSWindowsScreen::ignore() const
 void
 MSWindowsScreen::updateScreenShape()
 {
+    if (m_isPrimary) WindowsMonitorBridge::instance().refresh();
     // get shape and center
     m_w = GetSystemMetrics(SM_CXVIRTUALSCREEN);
     m_h = GetSystemMetrics(SM_CYVIRTUALSCREEN);

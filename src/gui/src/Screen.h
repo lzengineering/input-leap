@@ -66,6 +66,9 @@ class Screen : public BaseConfig
         QTextStream& writeScreensSection(QTextStream& outStream) const;
         QTextStream& writeAliasesSection(QTextStream& outStream) const;
 
+        bool monitorBridge() const { return m_MonitorBridge; }
+        int monitorBridgeYOffset() const { return m_MonitorBridgeYOffset; }
+
         bool swapped() const { return m_Swapped; }
         QString& name() { return m_Name; }
         void setName(const QString& name) { m_Name = name; }
@@ -97,6 +100,8 @@ class Screen : public BaseConfig
         QList<bool> m_Fixes;
 
         bool m_Swapped;
+        bool m_MonitorBridge = false;
+        int m_MonitorBridgeYOffset = 0;
 };
 
 QDataStream& operator<<(QDataStream& outStream, const Screen& screen);
